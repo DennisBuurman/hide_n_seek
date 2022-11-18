@@ -35,7 +35,7 @@ import {
     Marker,
 } from 'react-native-maps';
 
-import Geolocation from 'react-native-geolocation-service';
+import Geolocation, {GeoPosition} from 'react-native-geolocation-service';
 
 /*************************************************/
 
