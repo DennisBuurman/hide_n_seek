@@ -1,4 +1,5 @@
 {
   "name": "hide_n_seek",
-  "displayName": "hide_n_seek"
+  "displayName": "hide_n_seek",
+  "android.config.googleMaps.apiKey": "AIzaSyD6n81XWdGR0cza3_syVYwNsyReZ3uVHn0"
 }
