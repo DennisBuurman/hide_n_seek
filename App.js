@@ -37,6 +37,8 @@ import {
 
 import Geolocation, {GeoPosition} from 'react-native-geolocation-service';
 
+import GetLocation from './GetLocation.js';
+
 /*************************************************/
 
 const styles = StyleSheet.create({
@@ -82,6 +84,7 @@ const App = () => {
     };
 
     return (
+      /*
         <View style={styles.container}>
             <MapView
                 ref={mapRef}
@@ -99,6 +102,8 @@ const App = () => {
             <Text style={styles.text}> Current longitude: {region.longitude} </Text>
             <Button onPress={() => goToTokyo()} title="Center" />
         </View>
+      */
+      GetLocation()
     );
 }
 
