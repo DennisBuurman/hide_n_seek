@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
 /*************************************************/
 
 const GetLocation = () => {
-  // Variables, states, etc here
+  // Variables, states, etc. here
   const [forceLocation, setForceLocation] = useState(true);
   const [highAccuracy, setHighAccuracy] = useState(true);
   const [locationDialog, setLocationDialog] = useState(true);
@@ -87,7 +87,7 @@ const GetLocation = () => {
   const [foregroundService, setForegroundService] = useState(false);
   const [useLocationManager, setUseLocationManager] = useState(false);
   const [location, setLocation] = useState<GeoPosition | null>(null);
-
+  
   const watchId = useRef<number | null>(null);
         
   const stopLocationUpdates = () => {
