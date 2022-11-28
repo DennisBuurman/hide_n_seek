@@ -94,7 +94,6 @@ const App = () => {
   
   const goToUser = () => {
     console.log("Center button pressed.");
-    console.log(location);
     let user_loc = {
       latitude: location?.coords?.latitude,
       longitude: location?.coords?.longitude,
@@ -102,6 +101,30 @@ const App = () => {
       longitudeDelta: 0.01,
     }
     mapRef.current.animateToRegion(user_loc, 1 * 1000);
+  };
+  
+  const PlaceMarkers = () => {
+    
+    let user_loc = {
+      latitude: 51,
+      longitude: -0.09,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01
+    }
+    
+    if (location) {
+      user_loc.latitude = location.coords.latitude;
+      user_loc.longitude = location.coords.longitude;
+    }
+    
+    
+    return (
+      <Marker
+        coordinate={user_loc || region}
+        pinColor="red"
+        //image={require("./gray-person.png")}
+      />
+    );
   };
   
   /* Location functions */
@@ -186,6 +209,7 @@ const App = () => {
     Geolocation.getCurrentPosition(
       position => {
         setLocation(position);
+        console.log("Manual:");
         console.log(position);
       },
       error => {
@@ -209,6 +233,85 @@ const App = () => {
     );
   };
   
+  const getLocationUpdates = async () => {
+    const hasPermission = await hasLocationPermission();
+    
+    if (!hasPermission) {
+      return;
+    }
+    
+    if (Platform.OS === 'android' && foregroundService) {
+      await startForegroundService();
+    }
+    
+    setObserving(true);
+    
+    watchId.current = Geolocation.watchPosition(
+      position => {
+        setLocation(position);
+        console.log("Watcher:");
+        console.log(position);
+      },
+      error => {
+        setLocation(null);
+        console.log(error);
+      },
+      {
+        accuracy: {
+          android: 'high',
+          ios: 'best',
+        },
+        enableHighAccuracy: highAccuracy,
+        distanceFilter: 0,
+        interval: 10000,
+        fastestInterval: 10000,
+        forceRequestLocation: forceLocation,
+        forceLocationManager: useLocationManager,
+        showLocationDialog: locationDialog,
+        useSignificantChanges: significantChanges,
+      },
+    );
+  };
+  
+  const startForegroundService = async () => {
+    if (Platform.Version >= 26) {
+      await VIForegroundService.getInstance().createNotificationChannel({
+        id: 'locationChannel',
+        name: 'Location Tracking Channel',
+        description: 'Tracks location of user',
+        enableVibration: false,
+      });
+    }
+    
+    return VIForegroundService.getInstance().startService({
+      channelId: 'locationChannel',
+      id: 420,
+      title: appConfig.displayName,
+      text: 'Tracking location updates',
+      icon: 'ic_launcher',
+    });
+  };
+  
+  const stopLocationUpdates = () => {
+    if (Platform.OS === 'android') {
+      VIForegroundService.getInstance()
+        .stopService()
+        .catch((err: any) => err);
+    }
+  
+    if (watchId.current !== null) {
+      Geolocation.clearWatch(watchId.current);
+      watchId.current = null;
+      setObserving(false);
+    }
+  };
+  
+  useEffect(() => {
+    return () => {
+      stopLocationUpdates();
+    };
+  }, []);
+  
   /* End of location functions */
   
   // Return sequence
@@ -221,17 +324,11 @@ const App = () => {
         initialRegion = {region}
         onRegionChangeComplete={(region) => setRegion(region)}
       >
-        <Marker
-          {/* TODO: set marker to user location and make function*/}
-          coordinate={region}
-          pinColor="green"
-          //image={require("./shrek-head.png")}
-        />
+        <PlaceMarkers />
       </MapView>
-      <Text style={styles.text}> Current latitude: {region.latitude} </Text>
-      <Text style={styles.text}> Current longitude: {region.longitude} </Text>
       <Button onPress={() => goToUser()} title="Center" />
-      <Button title="Get Location" onPress={getLocation} />
+      <Button title ="Observe Location" onPress={getLocationUpdates} />
+      <Button title ="Stop observing" onPress={stopLocationUpdates} />
     </View>
     
     //GetLocation()
