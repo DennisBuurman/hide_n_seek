@@ -31,6 +31,8 @@ import {
     Alert,
     PermissionsAndroid,
     Platform,
+    Image,
+    Pressable,
 } from 'react-native';
 
 import MapView from 'react-native-maps';
@@ -49,19 +51,60 @@ const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     flex: 1,
-    justifyContent: "flex-end",
-    alignItems: 'center',
+    justifyContent: "flex-start",
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
-    //width: Dimensions.get('window').width,
+    //...StyleSheet.absoluteFillObject,
+    width: Dimensions.get('window').width,
     //height: Dimensions.get('window').height,
+    flex: 18,
+    
   },
   text: {
-    alignItems: 'center',
+    textAlign: 'center',
     fontSize: 20,
-    backgroundColor: 'lightblue',
+    fontWeight: 'bold',
+    color: 'black',
   },
+  title: {
+    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: 'black',
+    flex: 8,
+  },
+  header: {
+    fontSize: 20,
+    flexDirection: 'row',
+    backgroundColor: 'lavender',
+    fontWeight: 'bold',
+    color: 'black',
+    width: Dimensions.get('window').width,
+    flex: 1,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: "thistle",
+    borderRadius: 0,
+  },
+  buttons: {
+    flex: 3,
+    flexDirection: 'row',
+  },
+  button: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "thistle",
+    borderRadius: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 1,
+    paddingHorizontal: 1,
+    elevation: 3,
+    backgroundColor: 'lavender',
+  },
+  image: {
+    flex: 1,
+  }
 });
 
 /*************************************************/
@@ -103,27 +146,64 @@ const App = () => {
     mapRef.current.animateToRegion(user_loc, 1 * 1000);
   };
   
-  const PlaceMarkers = () => {
+  const PlaceMarkers = ({locations}) => {
     
     let user_loc = {
       latitude: 51,
       longitude: -0.09,
       latitudeDelta: 0.01,
       longitudeDelta: 0.01
-    }
+    };
     
     if (location) {
       user_loc.latitude = location.coords.latitude;
       user_loc.longitude = location.coords.longitude;
     }
     
+    var markers = Object.keys(locations).map(function(key) {
+      return(
+        <Marker 
+          coordinate={ 
+            {
+              latitude: locations[key].latitude,
+              longitude: locations[key].longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01
+            }
+          }
+          pinColor="red"
+          title="Adversary"
+          description="Last known location of Hunter {id}"
+        >
+          <Image 
+            source={require("./adversary.png")}
+            style={{width: 45, height: 45}}
+            resizeMode="contain"
+          />
+        </Marker>
+      );
+    });
     
-    return (
+    markers.push(
       <Marker
         coordinate={user_loc || region}
-        pinColor="red"
-        //image={require("./gray-person.png")}
-      />
+        pinColor="blue"
+        title="You"
+        description="Your last known location"
+      >
+        <Image 
+          source={require("./player.png")}
+          style={{width: 45, height: 45}}
+          resizeMode="contain"
+        />
+      </Marker>
+    );
+    
+    console.log('Markers:');
+    console.log(markers);
+    
+    return (
+      markers
     );
   };
   
@@ -314,21 +394,50 @@ const App = () => {
   
   /* End of location functions */
   
+  let locations = [
+    {
+      latitude: 52.1705,
+      longitude: 4.4556,
+    },
+    {
+      latitude: 52.1691,
+      longitude: 4.4576,
+    },
+  ]
+  
   // Return sequence
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}> Large Scale Hide-n-Seek </Text>
+        <Pressable style={styles.button} onPress={() => console.log("Settings pressed")}>
+          <Image 
+            source={require("./settings.jpg")}
+            style={styles.image}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </View>
       <MapView
         coords={location?.coords || null}
         ref={mapRef}
-        style = {styles.map}
+        style={styles.map}
         initialRegion = {region}
         onRegionChangeComplete={(region) => setRegion(region)}
       >
-        <PlaceMarkers />
+        <PlaceMarkers locations={locations}/>
       </MapView>
-      <Button onPress={() => goToUser()} title="Center" />
-      <Button title ="Observe Location" onPress={getLocationUpdates} />
-      <Button title ="Stop observing" onPress={stopLocationUpdates} />
+      <View style={styles.buttons}>
+        <Pressable style={styles.button} onPress={() => goToUser()}>
+          <Text style={styles.text}>Center</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={getLocationUpdates}>
+          <Text style={styles.text}>Observe Location</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={stopLocationUpdates}>
+          <Text style={styles.text}>Stop Observing</Text>
+        </Pressable>
+      </View>
     </View>
     
     //GetLocation()
