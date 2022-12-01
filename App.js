@@ -38,6 +38,7 @@ import {
     Pressable,
 } from 'react-native';
 import styles from './Styles.js';
+import uuid from 'react-native-uuid';
 
 // Location and maps imports
 import MapView from 'react-native-maps';
@@ -48,29 +49,14 @@ import Geolocation, {GeoPosition} from 'react-native-geolocation-service';
 import VIForegroundService from '@voximplant/react-native-foreground-service';
 
 // database imports
-import Realm from "realm";
-import {BSON} from 'realm';
-import {Game} from './Schema/GameSchema';
-import {Locations} from './Schema/LocationSchema';
-import {LoginComponent, getRealmApp} from './LoginComponent.js';
-import RealmContext from './RealmContext';
-const {RealmProvider} = RealmContext;
-const {useRealm, useQuery, useObject} = RealmContext;
-import {AppProvider, UserProvider, useUser, useApp} from '@realm/react';
+import firestore from '@react-native-firebase/firestore';
 
 /*************************************************/
 
-const AppWrapper = () => {
-  return (
-    <AppProvider id='hide-n-seek-hcajb' baseUrl='https://realm.mongodb.com'>
-      <UserProvider fallback={LoginComponent}>
-        <RealmProvider>
-          <App />
-        </RealmProvider>
-      </UserProvider>
-    </AppProvider>
-  );
-};
+const gameCollection = firestore().collection('Games');
+const uid = uuid.v4();
+
+/*************************************************/
 
 const App = () => {
   /* Variables */
@@ -78,12 +64,11 @@ const App = () => {
   const [highAccuracy, setHighAccuracy] = useState(true);
   const [locationDialog, setLocationDialog] = useState(true);
   const [significantChanges, setSignificantChanges] = useState(false);
-  const [observing, setObserving] = useState(false);
+  const [observing, setObserving] = useState(true);
   const [foregroundService, setForegroundService] = useState(false);
   const [useLocationManager, setUseLocationManager] = useState(false);
   const [location, setLocation] = useState<GeoPosition | null>(null);
   const watchId = useRef<number | null>(null);
-  const uid = new BSON.ObjectId();
   const [region, setRegion] = useState({
     latitude: 51,
     longitude: -0.09,
@@ -94,33 +79,112 @@ const App = () => {
   /* End variables */
   
   /* Database variables and functions */
-  const app = useApp();
-  const user = useUser();
-  const realm = useRealm();
+  const [players, setPlayers] = useState([]); // list of other player {id, role}
+  const [plocs, setPlocs] = useState([]); // locations of other players
+  const [status, setStatus] = useState('menu'); //menu, prep, play, end
+  const [gameId, setGameId] = useState('TestID');
+  const [role, setRole] = useState('Hunted');
+  
+  const joinGame = (id) => {
+    firestore().collection('Games').doc(id).get().then(documentSnapshot => {
+      console.log("Game exists:", documentSnapshot.exists);
+      if (documentSnapshot.exists) {
+        let players = documentSnapshot.data().players;
+        players.push({player_id: uid})
+        let player_count = documentSnapshot.data().player_count;
+        if (documentSnapshot.data().max_players > player_count) {
+          firestore().collection('Games').doc(id).update({
+            'player_count': player_count + 1,
+          })
+          firestore().collection('Games').doc(id).update({
+            'players': players,
+          }).then(() => {
+            console.log('Joined game!');
+          });
+        } else {
+          console.log("Game full...");
+        }
+      }
+    });
+  }
   
   const startGame = () => {
-    let name = "Test game";
-    let oid = new BSON.ObjectId();
-    realm.write(() => {
-      realm.create("Game", {
-        _id: oid,
-        name: name,
-        status: Game.STATUS_PREPARATION,
-        max_players: 5,
-        players: {player_id: user.id, role: Game.ROLE_HUNTED}
-      });
+    console.log("Trying to start Game");
+    firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+      if (documentSnapshot.exists) {
+        console.log("Game already exists, trying to join...");
+        joinGame(gameId);
+      } else {
+          firestore().collection('Games').doc(gameId).add({
+            name: 'Test game',
+            max_players: 5,
+            player_count: 1,
+            status: 'Prep',
+            players: [
+              {
+                player_id: uid,
+              }
+            ]
+          }).then(() => {
+            console.log('Game added!');
+            setStatus('Prep');
+          });
+      }
     });
-    console.log("Started game <ID> <name>: ", oid, name);
-    game_id = oid;
   }
   
-  const findGames = () => {
-    const games = realm.objects("Game");
-    console.log('Games: ', games);
+  const updateLocations = () => {
+    let locations = [];
+    firestore().collection('Locations').get().then(querySnapshot => {
+      console.log('Total users: ', querySnapshot.size);
+      querySnapshot.forEach(documentSnapshot => {
+        players.forEach(p => {
+          if (p.player_id == documentSnapshot.id) {
+            console.log("In game!");
+            locations.push({
+              player_id: documentSnapshot.id,
+              role: documentSnapshot.data().role,
+              latitude: documentSnapshot.data().latitude,
+              longitude: documentSnapshot.data().longitude
+            });
+          }
+        });
+      });
+      setPlocs(locations);
+    });
   }
   
-  console.log('User: ', user.id);
-  console.log('Realm: ', realm);
+  const updateGame = () => {
+    firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+      console.log('Game exists: ', documentSnapshot.exists);
+      if (documentSnapshot.exists) {
+        console.log('Game data: ', documentSnapshot.data());
+        setPlayers(documentSnapshot.data().players); // update player list
+        console.log('Players: ', players);
+        updateLocations(); // update player locations
+        setStatus(documentSnapshot.data().status); // update game status
+        if (status == 'end') {
+          console.log("Game has ended!");
+        }
+      }
+  });
+  }
+  
+  const postLocation = () => {
+    firestore().collection('Locations').doc(uid).set({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      role: role,
+    }).then(() => {
+      console.log('Location posted!');
+    });
+  }
+  
+  const deleteLocation = () => {
+    firestore().collection('Users').doc(uid).delete().then(() => {
+      console.log('User deleted!');
+    });
+  }
   
   /* End of Databas functions */
   
@@ -136,24 +200,28 @@ const App = () => {
     mapRef.current.animateToRegion(user_loc, 1 * 1000);
   };
   
-  const PlaceMarkers = ({locations}) => {
+  const PlaceMarkers = () => {
+    console.log("Locations:", plocs);
     
-    let user_loc = {
-      latitude: 51,
-      longitude: -0.09,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01
-    };
-    
-    if (location) {
-      user_loc.latitude = location.coords.latitude;
-      user_loc.longitude = location.coords.longitude;
-    }
-    
-    var markers = locations.map(loc => {
+    var markers = plocs.map(loc => {
+      let imgs = [require("./img/adversary.png"), require("./img/player.png")];
+      let img = imgs[0]
+      let description = loc.player_id;
+      let title = "Adversary";
+      
+      // check if friend
+      if (loc.role == role) {
+        img = imgs[1];
+        title = "Team";
+      }
+      
+      if (loc.player_id == uid) {
+        title = "You";
+      }
+      
       return(
         <Marker
-          key={loc.id}
+          key={loc.player_id}
           coordinate={ 
             {
               latitude: loc.latitude,
@@ -163,33 +231,17 @@ const App = () => {
             }
           }
           pinColor="red"
-          title="Adversary"
-          description="Last known location of Hunter {id}"
+          title={title}
+          description={description}
         >
           <Image 
-            source={require("./img/adversary.png")}
+            source={img}
             style={{width: 45, height: 45}}
             resizeMode="contain"
           />
         </Marker>
       );
     });
-    
-    markers.push(
-      <Marker
-        key={uid || region}
-        coordinate={user_loc || region}
-        pinColor="blue"
-        title="You"
-        description="Your last known location"
-      >
-        <Image 
-          source={require("./img/player.png")}
-          style={{width: 45, height: 45}}
-          resizeMode="contain"
-        />
-      </Marker>
-    );
     
     console.log('Update Markers');
     
@@ -281,7 +333,7 @@ const App = () => {
     Geolocation.getCurrentPosition(
       position => {
         setLocation(position);
-        console.log("Manual: ", position);
+        //console.log("Manual: ", position);
       },
       error => {
         Alert.alert(`Code ${error.code}`, error.message);
@@ -320,7 +372,7 @@ const App = () => {
     watchId.current = Geolocation.watchPosition(
       position => {
         setLocation(position);
-        console.log("Position:", position.coords.latitude, position.coords.longitude);
+        //console.log("Position:", position.coords.latitude, position.coords.longitude);
       },
       error => {
         setLocation(null);
@@ -386,19 +438,6 @@ const App = () => {
   
   /* End of location functions */
   
-  let locations = [
-    {
-      id: 2,
-      latitude: 52.1705,
-      longitude: 4.4556,
-    },
-    {
-      id: 1,
-      latitude: 52.1691,
-      longitude: 4.4576,
-    },
-  ]
-  
   /* Return sequence */
   return (
     <View style={styles.container}>
@@ -419,7 +458,7 @@ const App = () => {
         initialRegion={region}
         onRegionChangeComplete={(region) => setRegion(region)}
       >
-        <PlaceMarkers locations={locations}/>
+        <PlaceMarkers/>
       </MapView>
       <View style={styles.buttons}>
         <Pressable style={styles.button} onPress={() => goToUser()}>
@@ -434,12 +473,15 @@ const App = () => {
         <Pressable style={styles.button} onPress={startGame}>
           <Text style={styles.text}>Start a Game</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={findGames}>
-          <Text style={styles.text}>Find Games</Text>
+        <Pressable style={styles.button} onPress={postLocation}>
+          <Text style={styles.text}>Post Location</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={updateGame}>
+          <Text style={styles.text}>Update</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-export default AppWrapper;
+export default App;

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1078195999109",
+    "project_id": "hide-n-seek-mms",
+    "storage_bucket": "hide-n-seek-mms.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1078195999109:android:d410637b517ceb39d4b4ec",
+        "android_client_info": {
+          "package_name": "com.hide_n_seek"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1078195999109-61acnopjhh5nlf00rvbqbm9nv5onh72o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDe8Bd79fBi4S6uwlhrgQJPreDDBinCTKo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1078195999109-61acnopjhh5nlf00rvbqbm9nv5onh72o.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
