@@ -1,31 +1,3 @@
-/**
- * Large scale hide_n_seek app
- * https://github.com/DennisBuurman/hide_n_seek
- *
- * Authors: George Boukouvalas, Dennis Buurman
- * Organization: LIACS @ Leiden University
- * key: 8c6526fd-284d-4601-90f8-5cf99e87cb18
- * realm-cli login --api-key jvmokmqb --private-api-key 8c6526fd-284d-4601-90f8-5cf99e87cb18
- *
- * @format
- * @flow strict-local
- */
-
-/*
- * Sources:
- * https://github.com/react-native-maps/react-native-maps
- * https://reactnative.dev/docs/0.63/geolocation
- * https://github.com/Agontuk/react-native-geolocation-service
- * https://developer.android.com/reference/android/Manifest.permission
- * https://blog.logrocket.com/react-native-maps-introduction/
- * https://www.mongodb.com/docs/atlas/app-services/tutorial/react-native/
- * https://www.mongodb.com/docs/realm/sdk/react-native/install/
- * https://www.w3schools.com/nodejs/nodejs_mongodb.asp
- *
- */
-
-/*************************************************/
-
 import React, { useState, useRef, component, useEffect } from "react";
 import {
     Text,
@@ -39,7 +11,6 @@ import {
 } from 'react-native';
 import styles from './Styles.js';
 
-// Location and maps imports
 import MapView from 'react-native-maps';
 import {
     Marker,
@@ -47,82 +18,23 @@ import {
 import Geolocation, {GeoPosition} from 'react-native-geolocation-service';
 import VIForegroundService from '@voximplant/react-native-foreground-service';
 
-// database imports
-import Realm from "realm";
-import {BSON} from 'realm';
-import {Game} from './Schema/GameSchema';
-import {Locations} from './Schema/LocationSchema';
-import {LoginComponent, getRealmApp} from './LoginComponent.js';
-import RealmContext from './RealmContext';
-const {RealmProvider} = RealmContext;
-const {useRealm, useQuery, useObject} = RealmContext;
-import {AppProvider, UserProvider, useUser, useApp} from '@realm/react';
-
-/*************************************************/
-
-const AppWrapper = () => {
-  return (
-    <AppProvider id='hide-n-seek-hcajb' baseUrl='https://realm.mongodb.com'>
-      <UserProvider fallback={LoginComponent}>
-        <RealmProvider>
-          <App />
-        </RealmProvider>
-      </UserProvider>
-    </AppProvider>
-  );
-};
-
-const App = () => {
-  /* Variables */
-  const [forceLocation, setForceLocation] = useState(true);
-  const [highAccuracy, setHighAccuracy] = useState(true);
-  const [locationDialog, setLocationDialog] = useState(true);
-  const [significantChanges, setSignificantChanges] = useState(false);
-  const [observing, setObserving] = useState(false);
-  const [foregroundService, setForegroundService] = useState(false);
-  const [useLocationManager, setUseLocationManager] = useState(false);
+export function GameMap() {
+//  const [forceLocation, setForceLocation] = useState(true);
+//  const [highAccuracy, setHighAccuracy] = useState(true);
+//  const [locationDialog, setLocationDialog] = useState(true);
+//  const [significantChanges, setSignificantChanges] = useState(false);
+//  const [observing, setObserving] = useState(false);
+//  const [foregroundService, setForegroundService] = useState(false);
+//  const [useLocationManager, setUseLocationManager] = useState(false);
   const [location, setLocation] = useState<GeoPosition | null>(null);
-  const watchId = useRef<number | null>(null);
-  const uid = new BSON.ObjectId();
-  const [region, setRegion] = useState({
-    latitude: 51,
-    longitude: -0.09,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  });
-  const mapRef = useRef(null);
-  /* End variables */
-  
-  /* Database variables and functions */
-  const app = useApp();
-  const user = useUser();
-  const realm = useRealm();
-  
-  const startGame = () => {
-    let name = "Test game";
-    let oid = new BSON.ObjectId();
-    realm.write(() => {
-      realm.create("Game", {
-        _id: oid,
-        name: name,
-        status: Game.STATUS_PREPARATION,
-        max_players: 5,
-        players: {player_id: user.id, role: Game.ROLE_HUNTED}
-      });
-    });
-    console.log("Started game <ID> <name>: ", oid, name);
-    game_id = oid;
-  }
-  
-  const findGames = () => {
-    const games = realm.objects("Game");
-    console.log('Games: ', games);
-  }
-  
-  console.log('User: ', user.id);
-  console.log('Realm: ', realm);
-  
-  /* End of Databas functions */
+//  const watchId = useRef<number | null>(null);
+//  const [region, setRegion] = useState({
+//    latitude: 51,
+//    longitude: -0.09,
+//    latitudeDelta: 0.01,
+//    longitudeDelta: 0.01,
+//  });
+//  const mapRef = useRef(null);
   
   /* Map functions */
   const goToUser = () => {
@@ -137,7 +49,6 @@ const App = () => {
   };
   
   const PlaceMarkers = ({locations}) => {
-    
     let user_loc = {
       latitude: 51,
       longitude: -0.09,
@@ -191,7 +102,7 @@ const App = () => {
       </Marker>
     );
     
-    console.log('Update Markers');
+    console.log('Markers:', markers);
     
     return (
       markers
@@ -320,7 +231,7 @@ const App = () => {
     watchId.current = Geolocation.watchPosition(
       position => {
         setLocation(position);
-        console.log("Position:", position.coords.latitude, position.coords.longitude);
+        console.log("Watcher:", position);
       },
       error => {
         setLocation(null);
@@ -399,47 +310,28 @@ const App = () => {
     },
   ]
   
-  /* Return sequence */
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}> Large Scale Hide-n-Seek </Text>
-        <Pressable style={styles.button} onPress={() => console.log("Settings pressed")}>
-          <Image 
-            source={require("./img/settings.jpg")}
-            style={styles.image}
-            resizeMode="contain"
-          />
-        </Pressable>
-      </View>
+    <View>
       <MapView
         coords={location?.coords || null}
         ref={mapRef}
         style={styles.map}
-        initialRegion={region}
+        initialRegion = {region}
         onRegionChangeComplete={(region) => setRegion(region)}
       >
         <PlaceMarkers locations={locations}/>
       </MapView>
       <View style={styles.buttons}>
-        <Pressable style={styles.button} onPress={() => goToUser()}>
-          <Text style={styles.text}>Center</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={getLocationUpdates}>
-          <Text style={styles.text}>Observe Location</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={stopLocationUpdates}>
-          <Text style={styles.text}>Stop Observing</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={startGame}>
-          <Text style={styles.text}>Start a Game</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={findGames}>
-          <Text style={styles.text}>Find Games</Text>
-        </Pressable>
+          <Pressable style={styles.button} onPress={() => goToUser()}>
+            <Text style={styles.text}>Center</Text>
+          </Pressable>
+          <Pressable style={styles.button} onPress={getLocationUpdates}>
+            <Text style={styles.text}>Observe Location</Text>
+          </Pressable>
+          <Pressable style={styles.button} onPress={stopLocationUpdates}>
+            <Text style={styles.text}>Stop Observing</Text>
+          </Pressable>
       </View>
     </View>
   );
 }
-
-export default AppWrapper;
