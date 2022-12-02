@@ -55,6 +55,8 @@ import firestore from '@react-native-firebase/firestore';
 
 const gameCollection = firestore().collection('Games');
 const uid = uuid.v4();
+const INTERVAL_MS = 2;
+let counter = 0;
 
 /*************************************************/
 
@@ -64,7 +66,7 @@ const App = () => {
   const [highAccuracy, setHighAccuracy] = useState(true);
   const [locationDialog, setLocationDialog] = useState(true);
   const [significantChanges, setSignificantChanges] = useState(false);
-  const [observing, setObserving] = useState(true);
+  const [observing, setObserving] = useState(false);
   const [foregroundService, setForegroundService] = useState(false);
   const [useLocationManager, setUseLocationManager] = useState(false);
   const [location, setLocation] = useState<GeoPosition | null>(null);
@@ -87,7 +89,7 @@ const App = () => {
   
   const joinGame = (id) => {
     firestore().collection('Games').doc(id).get().then(documentSnapshot => {
-      console.log("Game exists:", documentSnapshot.exists);
+      console.log("--> Game exists:", documentSnapshot.exists);
       if (documentSnapshot.exists) {
         let players = documentSnapshot.data().players;
         players.push({player_id: uid})
@@ -99,20 +101,20 @@ const App = () => {
           firestore().collection('Games').doc(id).update({
             'players': players,
           }).then(() => {
-            console.log('Joined game!');
+            console.log('--> Joined game!');
           });
         } else {
-          console.log("Game full...");
+          console.log("--> Game full...");
         }
       }
     });
   }
   
   const createGame = () => {
-    console.log("Trying to create a Game");
+    console.log("--> Trying to create a Game");
     firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
       if (documentSnapshot.exists) {
-        console.log("Game already exists, trying to join...");
+        console.log("--> Game already exists, trying to join...");
         joinGame(gameId);
       } else {
           firestore().collection('Games').doc(gameId).set({
@@ -126,7 +128,7 @@ const App = () => {
               }
             ]
           }).then(() => {
-            console.log('Game added!');
+            console.log('--> Game added!');
             setStatus('Prep');
           });
       }
@@ -137,7 +139,7 @@ const App = () => {
     let locations = [];
     let count = 0;
     firestore().collection('Locations').get().then(querySnapshot => {
-      console.log('Total users: ', querySnapshot.size);
+      console.log('--> Total users: ', querySnapshot.size);
       querySnapshot.forEach(documentSnapshot => {
         players.forEach(p => {
           if (p.player_id == documentSnapshot.id) {
@@ -151,7 +153,7 @@ const App = () => {
           }
         });
       });
-      console.log("Players in game:", count);
+      console.log("--> Players in game:", count);
       setPlocs(locations);
     });
   }
@@ -163,20 +165,34 @@ const App = () => {
   
   const checkStatus = () => {
     if (status == 'Menu') {
-      console.log('Still in menu...');
+      console.log('--> Still in menu...');
     } else if (status == 'Prep') {
-      console.log('Preparation phase...');
+      console.log('--> Preparation phase...');
     } else if (status == 'Play') {
-      console.log('Playing game...');
+      console.log('--> Playing game...');
       checkWinCondition();
     } else {
-      console.log('Game has Ended...');
+      console.log('--> Game has Ended...');
+    }
+  }
+  
+  const postLocation = () => {
+    if (location) {
+      firestore().collection('Locations').doc(uid).set({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        role: role,
+      }).then(() => {
+        console.log('--> Location posted!');
+      });
+    } else {
+      console.log("--> Waiting for location...");
     }
   }
   
   const updateGame = () => {
     firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
-      console.log('Game exists: ', documentSnapshot.exists);
+      console.log('--> Game exists: ', documentSnapshot.exists);
       if (documentSnapshot.exists) {
         //console.log('Game data: ', documentSnapshot.data());
         setPlayers(documentSnapshot.data().players); // update player list
@@ -188,16 +204,6 @@ const App = () => {
           console.log("Game has ended!");
         }
       }
-    });
-  }
-  
-  const postLocation = () => {
-    firestore().collection('Locations').doc(uid).set({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      role: role,
-    }).then(() => {
-      console.log('Location posted!');
     });
   }
   
@@ -284,7 +290,7 @@ const App = () => {
       );
     });
     
-    console.log('Update Markers');
+    console.log('--> Update Markers');
     
     return (
       markers
@@ -413,7 +419,7 @@ const App = () => {
     watchId.current = Geolocation.watchPosition(
       position => {
         setLocation(position);
-        //console.log("Position:", position.coords.latitude, position.coords.longitude);
+        console.log("--> Position:", position.coords.latitude, position.coords.longitude);
       },
       error => {
         setLocation(null);
@@ -472,6 +478,16 @@ const App = () => {
   };
   
 //  useEffect(() => {
+//    const interval = setInterval(() => {
+//      console.log('\n<Interval>');
+//      postLocation();
+//      updateGame();
+//    }, MINUTE_MS);
+//    
+//    return () => clearInterval(interval);
+//  }, [])
+  
+//  useEffect(() => {
 //    return () => {
 //      stopLocationUpdates();
 //    };
@@ -479,6 +495,18 @@ const App = () => {
   
   /* End of location functions */
   
+  if (!observing) {
+    getLocationUpdates(); // start by activating location updates
+  } else {
+    if (counter > INTERVAL_MS) {
+      postLocation();
+      updateGame();
+      counter = 0;
+    } else {
+      counter = counter + 1;
+    }
+  }
+    
   /* Return sequence */
   return (
     <View style={styles.container}>
