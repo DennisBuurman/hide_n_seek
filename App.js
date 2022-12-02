@@ -533,23 +533,25 @@ const App = () => {
         <Pressable style={styles.button} onPress={() => goToUser()}>
           <Text style={styles.text}>Center</Text>
         </Pressable>
+        {/*
         <Pressable style={styles.button} onPress={getLocationUpdates}>
           <Text style={styles.text}>Observe Location</Text>
         </Pressable>
-        {/*
         <Pressable style={styles.button} onPress={stopLocationUpdates}>
           <Text style={styles.text}>Stop Observing</Text>
         </Pressable>
         */}
         <Pressable style={styles.button} onPress={createGame}>
-          <Text style={styles.text}>Create a Game</Text>
+          <Text style={styles.text}>Join a Game</Text>
         </Pressable>
+        {/*
         <Pressable style={styles.button} onPress={postLocation}>
           <Text style={styles.text}>Post Location</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={updateGame}>
           <Text style={styles.text}>Update</Text>
         </Pressable>
+        */}
         <Pressable style={styles.button} onPress={changeRole}>
           <Text style={styles.text}>Change Role</Text>
         </Pressable>

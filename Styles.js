@@ -45,7 +45,7 @@ export default styles = StyleSheet.create({
   buttons: {
     flex: 4,
     flexDirection: 'row',
-    flexWrap: "wrap",
+    //flexWrap: "wrap",
   },
   button: {
     flex: 1,
