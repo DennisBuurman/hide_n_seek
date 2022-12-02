@@ -186,6 +186,24 @@ const App = () => {
     });
   }
   
+  const changeRole = () => {
+    let new_role = 'Hunted';
+    firestore().collection('Locations').doc(uid).get().then(documentSnapshot => {
+      if (documentSnapshot.exists) {
+        let cur_role = documentSnapshot.data().role;
+        if (cur_role == 'Hunted') {
+          new_role = 'Hunter';
+        }
+        firestore().collection('Locations').doc(uid).update({
+          'role': new_role
+        }).then(() => {
+          setRole(new_role);
+          console.log('Role changed to:', new_role);
+        });
+      }
+    });
+  }
+  
   /* End of Databas functions */
   
   /* Map functions */
