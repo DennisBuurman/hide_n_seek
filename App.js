@@ -115,7 +115,7 @@ const App = () => {
         console.log("Game already exists, trying to join...");
         joinGame(gameId);
       } else {
-          firestore().collection('Games').doc(gameId).add({
+          firestore().collection('Games').doc(gameId).set({
             name: 'Test game',
             max_players: 5,
             player_count: 1,
