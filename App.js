@@ -81,7 +81,7 @@ const App = () => {
   /* Database variables and functions */
   const [players, setPlayers] = useState([]); // list of other player {id, role}
   const [plocs, setPlocs] = useState([]); // locations of other players
-  const [status, setStatus] = useState('menu'); //menu, prep, play, end
+  const [status, setStatus] = useState('Menu'); //Menu, Prep, Play, End
   const [gameId, setGameId] = useState('TestID');
   const [role, setRole] = useState('Hunted');
   
@@ -108,8 +108,8 @@ const App = () => {
     });
   }
   
-  const startGame = () => {
-    console.log("Trying to start Game");
+  const createGame = () => {
+    console.log("Trying to create a Game");
     firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
       if (documentSnapshot.exists) {
         console.log("Game already exists, trying to join...");
@@ -135,12 +135,13 @@ const App = () => {
   
   const updateLocations = () => {
     let locations = [];
+    let count = 0;
     firestore().collection('Locations').get().then(querySnapshot => {
       console.log('Total users: ', querySnapshot.size);
       querySnapshot.forEach(documentSnapshot => {
         players.forEach(p => {
           if (p.player_id == documentSnapshot.id) {
-            console.log("In game!");
+            count += 1;
             locations.push({
               player_id: documentSnapshot.id,
               role: documentSnapshot.data().role,
@@ -150,24 +151,44 @@ const App = () => {
           }
         });
       });
+      console.log("Players in game:", count);
       setPlocs(locations);
     });
+  }
+  
+  const checkWinCondition = () => {
+    // Check if player in vicinity
+    
+  }
+  
+  const checkStatus = () => {
+    if (status == 'Menu') {
+      console.log('Still in menu...');
+    } else if (status == 'Prep') {
+      console.log('Preparation phase...');
+    } else if (status == 'Play') {
+      console.log('Playing game...');
+      checkWinCondition();
+    } else {
+      console.log('Game has Ended...');
+    }
   }
   
   const updateGame = () => {
     firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
       console.log('Game exists: ', documentSnapshot.exists);
       if (documentSnapshot.exists) {
-        console.log('Game data: ', documentSnapshot.data());
+        //console.log('Game data: ', documentSnapshot.data());
         setPlayers(documentSnapshot.data().players); // update player list
-        console.log('Players: ', players);
+        //console.log('Players: ', players);
         updateLocations(); // update player locations
         setStatus(documentSnapshot.data().status); // update game status
+        checkStatus();
         if (status == 'end') {
           console.log("Game has ended!");
         }
       }
-  });
+    });
   }
   
   const postLocation = () => {
@@ -187,8 +208,10 @@ const App = () => {
   }
   
   const changeRole = () => {
+    console.log("Trying to change role...");
     let new_role = 'Hunted';
     firestore().collection('Locations').doc(uid).get().then(documentSnapshot => {
+      console.log("Location doc exists:", documentSnapshot.exists);
       if (documentSnapshot.exists) {
         let cur_role = documentSnapshot.data().role;
         if (cur_role == 'Hunted') {
@@ -219,7 +242,7 @@ const App = () => {
   };
   
   const PlaceMarkers = () => {
-    console.log("Locations:", plocs);
+    //console.log("Locations:", plocs);
     
     var markers = plocs.map(loc => {
       let imgs = [require("./img/adversary.png"), require("./img/player.png")];
@@ -448,11 +471,11 @@ const App = () => {
     }
   };
   
-  useEffect(() => {
-    return () => {
-      stopLocationUpdates();
-    };
-  }, []);
+//  useEffect(() => {
+//    return () => {
+//      stopLocationUpdates();
+//    };
+//  }, []);
   
   /* End of location functions */
   
@@ -485,17 +508,22 @@ const App = () => {
         <Pressable style={styles.button} onPress={getLocationUpdates}>
           <Text style={styles.text}>Observe Location</Text>
         </Pressable>
+        {/*
         <Pressable style={styles.button} onPress={stopLocationUpdates}>
           <Text style={styles.text}>Stop Observing</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={startGame}>
-          <Text style={styles.text}>Start a Game</Text>
+        */}
+        <Pressable style={styles.button} onPress={createGame}>
+          <Text style={styles.text}>Create a Game</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={postLocation}>
           <Text style={styles.text}>Post Location</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={updateGame}>
           <Text style={styles.text}>Update</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={changeRole}>
+          <Text style={styles.text}>Change Role</Text>
         </Pressable>
       </View>
     </View>

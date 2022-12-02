@@ -13,7 +13,7 @@ export default styles = StyleSheet.create({
     //...StyleSheet.absoluteFillObject,
     width: Dimensions.get('window').width,
     //height: Dimensions.get('window').height,
-    flex: 18,
+    flex: 15,
     
   },
   text: {
@@ -43,11 +43,13 @@ export default styles = StyleSheet.create({
     borderRadius: 0,
   },
   buttons: {
-    flex: 3,
+    flex: 5,
     flexDirection: 'row',
+    flexWrap: "wrap",
   },
   button: {
     flex: 1,
+    flexBasis: 100,
     borderWidth: 1,
     borderColor: "thistle",
     borderRadius: 0,
