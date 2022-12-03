@@ -45,11 +45,11 @@ export default styles = StyleSheet.create({
   buttons: {
     flex: 4,
     flexDirection: 'row',
-    //flexWrap: "wrap",
+    //flexWrap: 'wrap',
   },
   button: {
     flex: 1,
-    flexBasis: 100,
+    flexBasis: 0,
     borderWidth: 1,
     borderColor: "thistle",
     borderRadius: 0,

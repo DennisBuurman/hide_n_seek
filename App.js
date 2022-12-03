@@ -83,9 +83,10 @@ const App = () => {
   /* Database variables and functions */
   const [players, setPlayers] = useState([]); // list of other player {id, role}
   const [plocs, setPlocs] = useState([]); // locations of other players
-  const [status, setStatus] = useState('Menu'); //Menu, Prep, Play, End
+  const [status, setStatus] = useState('Menu'); // Menu, Prep, Play, End
   const [gameId, setGameId] = useState('TestID');
   const [role, setRole] = useState('Hunted');
+  const [host, setHost] = useState('Lobby'); // Lobby, Host, Participant
   
   const joinGameAlert = (msg) => {
     Alert.alert(
@@ -95,6 +96,11 @@ const App = () => {
         { text: "OK", onPress: () => console.log("OK Pressed") }
       ]
     );
+  }
+  
+  const startGame = () => {
+    console.log('TODO: start game (first check if Host)');
+    joinGameAlert('TODO: start game');
   }
   
   const joinGame = (id) => {
@@ -113,6 +119,7 @@ const App = () => {
           }).then(() => {
             console.log('--> Joined game!');
             joinGameAlert('Success: Joined game!');
+            setHost('Participant');
           });
         } else {
           console.log("--> Game full...");
@@ -142,6 +149,7 @@ const App = () => {
           }).then(() => {
             console.log('--> Game added!');
             joinGameAlert('Created game with ID: ' + gameId);
+            setHost('Host');
             setStatus('Prep');
           });
       }
@@ -183,7 +191,6 @@ const App = () => {
       console.log('--> Preparation phase...');
     } else if (status == 'Play') {
       console.log('--> Playing game...');
-      checkWinCondition();
     } else {
       console.log('--> Game has Ended...');
     }
@@ -211,11 +218,11 @@ const App = () => {
         setPlayers(documentSnapshot.data().players); // update player list
         //console.log('Players: ', players);
         updateLocations(); // update player locations
+        if (documentSnapshot.data().status == 'Play' && status != 'Play') {
+          joinGameAlert('Game has started, good luck!');
+        }
         setStatus(documentSnapshot.data().status); // update game status
         checkStatus();
-        if (status == 'end') {
-          console.log("Game has ended!");
-        }
       }
     });
   }
@@ -569,6 +576,9 @@ const App = () => {
           <Text style={styles.text}>Update</Text>
         </Pressable>
         */}
+        <Pressable style={styles.button} onPress={startGame}>
+          <Text style={styles.text}>Start Game</Text>
+        </Pressable>
         <Pressable style={styles.button} onPress={changeRole}>
           <Text style={styles.text}>Change Role</Text>
         </Pressable>
