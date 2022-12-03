@@ -55,7 +55,7 @@ import firestore from '@react-native-firebase/firestore';
 
 const gameCollection = firestore().collection('Games');
 const uid = uuid.v4();
-const INTERVAL_MS = 2;
+const INTERVAL_MS = 3;
 let counter = 0;
 
 /*************************************************/
@@ -87,6 +87,16 @@ const App = () => {
   const [gameId, setGameId] = useState('TestID');
   const [role, setRole] = useState('Hunted');
   
+  const joinGameAlert = (msg) => {
+    Alert.alert(
+      "Game join info:",
+      msg,
+      [
+        { text: "OK", onPress: () => console.log("OK Pressed") }
+      ]
+    );
+  }
+  
   const joinGame = (id) => {
     firestore().collection('Games').doc(id).get().then(documentSnapshot => {
       console.log("--> Game exists:", documentSnapshot.exists);
@@ -102,9 +112,11 @@ const App = () => {
             'players': players,
           }).then(() => {
             console.log('--> Joined game!');
+            joinGameAlert('Success: Joined game!');
           });
         } else {
           console.log("--> Game full...");
+          joinGameAlert('Failed: Game full :(');
         }
       }
     });
@@ -119,7 +131,7 @@ const App = () => {
       } else {
           firestore().collection('Games').doc(gameId).set({
             name: 'Test game',
-            max_players: 5,
+            max_players: 20,
             player_count: 1,
             status: 'Prep',
             players: [
@@ -129,6 +141,7 @@ const App = () => {
             ]
           }).then(() => {
             console.log('--> Game added!');
+            joinGameAlert('Created game with ID: ' + gameId);
             setStatus('Prep');
           });
       }
@@ -228,6 +241,7 @@ const App = () => {
         }).then(() => {
           setRole(new_role);
           console.log('Role changed to:', new_role);
+          joinGameAlert('Changed role to: ' + new_role);
         });
       }
     });
@@ -247,6 +261,7 @@ const App = () => {
     mapRef.current.animateToRegion(user_loc, 1 * 1000);
   };
   
+  /* use React.memo */
   const PlaceMarkers = () => {
     //console.log("Locations:", plocs);
     
@@ -254,21 +269,22 @@ const App = () => {
       let imgs = [require("./img/adversary.png"), require("./img/player.png")];
       let img = imgs[0]
       let description = loc.player_id;
-      let title = "Adversary";
+      let title = "Adversary: " + loc.role;
       
       // check if friend
       if (loc.role == role) {
         img = imgs[1];
-        title = "Team";
+        title = "Team: " + loc.role;
       }
       
       if (loc.player_id == uid) {
-        title = "You";
+        title = "You: " + loc.role;
       }
       
       return(
         <Marker
           key={loc.player_id}
+          tracksViewChanges={false}
           coordinate={ 
             {
               latitude: loc.latitude,
@@ -487,6 +503,7 @@ const App = () => {
 //    return () => clearInterval(interval);
 //  }, [])
   
+//  TODO: use useCallback hook
 //  useEffect(() => {
 //    return () => {
 //      stopLocationUpdates();
