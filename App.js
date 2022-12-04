@@ -18,9 +18,8 @@
  * https://github.com/Agontuk/react-native-geolocation-service
  * https://developer.android.com/reference/android/Manifest.permission
  * https://blog.logrocket.com/react-native-maps-introduction/
- * https://www.mongodb.com/docs/atlas/app-services/tutorial/react-native/
- * https://www.mongodb.com/docs/realm/sdk/react-native/install/
- * https://www.w3schools.com/nodejs/nodejs_mongodb.asp
+ * https://github.com/manuelbieh/geolib
+ * 
  *
  */
 
@@ -47,6 +46,7 @@ import {
 } from 'react-native-maps';
 import Geolocation, {GeoPosition} from 'react-native-geolocation-service';
 import VIForegroundService from '@voximplant/react-native-foreground-service';
+import getDistance from 'geolib/es/getDistance';
 
 // database imports
 import firestore from '@react-native-firebase/firestore';
@@ -54,7 +54,7 @@ import firestore from '@react-native-firebase/firestore';
 /*************************************************/
 
 const gameCollection = firestore().collection('Games');
-const uid = uuid.v4();
+const uid = uuid.v4(); // TODO: save in file after debug phase (used for player simulation)
 const INTERVAL_MS = 3;
 let counter = 0;
 
@@ -81,17 +81,17 @@ const App = () => {
   /* End variables */
   
   /* Database variables and functions */
-  const [players, setPlayers] = useState([]); // list of other player {id, role}
-  const [plocs, setPlocs] = useState([]); // locations of other players
+  const [players, setPlayers] = useState([]); // list of other player {id, alive}
+  const [plocs, setPlocs] = useState([]); // locations of other players {id, lat, lon, role}
   const [status, setStatus] = useState('Menu'); // Menu, Prep, Play, End
   const [gameId, setGameId] = useState('TestID');
   const [role, setRole] = useState('Hunted');
   const [host, setHost] = useState('Lobby'); // Lobby, Host, Participant
   
-  const joinGameAlert = (msg) => {
+  const customAlert = (msg) => {
     Alert.alert(
-      "Game join info:",
-      msg,
+      msg.title,
+      msg.desc,
       [
         { text: "OK", onPress: () => console.log("OK Pressed") }
       ]
@@ -100,7 +100,7 @@ const App = () => {
   
   const startGame = () => {
     console.log('TODO: start game (first check if Host)');
-    joinGameAlert('TODO: start game');
+    customAlert({title: 'Starting a game', desc: 'TODO: Trying  to start a game'});
   }
   
   const joinGame = (id) => {
@@ -108,7 +108,10 @@ const App = () => {
       console.log("--> Game exists:", documentSnapshot.exists);
       if (documentSnapshot.exists) {
         let players = documentSnapshot.data().players;
-        players.push({player_id: uid})
+        players.push({
+          player_id: uid,
+          alive: true,
+        });
         let player_count = documentSnapshot.data().player_count;
         if (documentSnapshot.data().max_players > player_count) {
           firestore().collection('Games').doc(id).update({
@@ -118,12 +121,12 @@ const App = () => {
             'players': players,
           }).then(() => {
             console.log('--> Joined game!');
-            joinGameAlert('Success: Joined game!');
+            customAlert({title: 'Join info:', desc: 'Game exists and succesfully joined!'});
             setHost('Participant');
           });
         } else {
           console.log("--> Game full...");
-          joinGameAlert('Failed: Game full :(');
+          customAlert({title: 'Joi info:', desc: 'Failed: Game full.'});
         }
       }
     });
@@ -141,14 +144,16 @@ const App = () => {
             max_players: 20,
             player_count: 1,
             status: 'Prep',
+            host: uid,
             players: [
               {
                 player_id: uid,
+                alive: true,
               }
             ]
           }).then(() => {
             console.log('--> Game added!');
-            joinGameAlert('Created game with ID: ' + gameId);
+            customAlert({title: 'Create info:', desc: 'Created game with ID: ' + gameId});
             setHost('Host');
             setStatus('Prep');
           });
@@ -160,10 +165,10 @@ const App = () => {
     let locations = [];
     let count = 0;
     firestore().collection('Locations').get().then(querySnapshot => {
-      console.log('--> Total users: ', querySnapshot.size);
+      //console.log('--> Total users: ', querySnapshot.size);
       querySnapshot.forEach(documentSnapshot => {
         players.forEach(p => {
-          if (p.player_id == documentSnapshot.id) {
+          if (p.alive && p.player_id == documentSnapshot.id) {
             count += 1;
             locations.push({
               player_id: documentSnapshot.id,
@@ -181,7 +186,36 @@ const App = () => {
   
   const checkWinCondition = () => {
     // Check if player in vicinity
+    let adversaries = [];
+    let you;
+    let dist;
     
+    // Get adversary list from plocs: {id, lat, lon, role}
+    plocs.forEach(p => {
+      if (p.role != role) {
+        adversaries.push(p);
+      } else if (p.id == uid) {
+        you = p;
+      }
+    });
+    
+    // Check if an adversary is close to you
+    adversaries.forEach(a => {
+      dist = getDistance(
+        {
+          latitute: you.latitude, 
+          longitude: you.longitude
+        }, 
+        {
+          latitude: a.latitude, 
+          longitde: a.longitude
+        },
+        1
+      );
+      if (dist < 50) {
+        customAlert({title: 'Adversary close', desc: 'TODO: Have you spotted an Adversary?'});
+      }
+    });
   }
   
   const checkStatus = () => {
@@ -191,6 +225,7 @@ const App = () => {
       console.log('--> Preparation phase...');
     } else if (status == 'Play') {
       console.log('--> Playing game...');
+      checkWinCondition();
     } else {
       console.log('--> Game has Ended...');
     }
@@ -211,20 +246,22 @@ const App = () => {
   }
   
   const updateGame = () => {
-    firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
-      console.log('--> Game exists: ', documentSnapshot.exists);
-      if (documentSnapshot.exists) {
-        //console.log('Game data: ', documentSnapshot.data());
-        setPlayers(documentSnapshot.data().players); // update player list
-        //console.log('Players: ', players);
-        updateLocations(); // update player locations
-        if (documentSnapshot.data().status == 'Play' && status != 'Play') {
-          joinGameAlert('Game has started, good luck!');
+    if (status != 'Menu') {
+      firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+        console.log('--> Game exists: ', documentSnapshot.exists);
+        if (documentSnapshot.exists) {
+          //console.log('Game data: ', documentSnapshot.data());
+          setPlayers(documentSnapshot.data().players); // update player list
+          //console.log('Players: ', players);
+          updateLocations(); // update player locations
+          if (documentSnapshot.data().status == 'Play' && status != 'Play') {
+            customAlert({title: 'Game status info:', desc: 'Game has started, good luck!'});
+          }
+          setStatus(documentSnapshot.data().status); // update game status
         }
-        setStatus(documentSnapshot.data().status); // update game status
-        checkStatus();
-      }
-    });
+      });
+    }
+    checkStatus();
   }
   
   const deleteLocation = () => {
@@ -248,8 +285,10 @@ const App = () => {
         }).then(() => {
           setRole(new_role);
           console.log('Role changed to:', new_role);
-          joinGameAlert('Changed role to: ' + new_role);
+          customAlert({title: 'Role info:', desc: 'Changed role to: ' + new_role});
         });
+      } else {
+        customAlert({title: 'Role info:', desc: 'Join a game first :)'});
       }
     });
   }
@@ -557,25 +596,9 @@ const App = () => {
         <Pressable style={styles.button} onPress={() => goToUser()}>
           <Text style={styles.text}>Center</Text>
         </Pressable>
-        {/*
-        <Pressable style={styles.button} onPress={getLocationUpdates}>
-          <Text style={styles.text}>Observe Location</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={stopLocationUpdates}>
-          <Text style={styles.text}>Stop Observing</Text>
-        </Pressable>
-        */}
         <Pressable style={styles.button} onPress={createGame}>
           <Text style={styles.text}>Join a Game</Text>
         </Pressable>
-        {/*
-        <Pressable style={styles.button} onPress={postLocation}>
-          <Text style={styles.text}>Post Location</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={updateGame}>
-          <Text style={styles.text}>Update</Text>
-        </Pressable>
-        */}
         <Pressable style={styles.button} onPress={startGame}>
           <Text style={styles.text}>Start Game</Text>
         </Pressable>
