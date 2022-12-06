@@ -87,6 +87,7 @@ const App = () => {
   const [gameId, setGameId] = useState('TestID');
   const [role, setRole] = useState('Hunted');
   const [host, setHost] = useState('Lobby'); // Lobby, Host, Participant
+  const [maxPlayers, setMaxPlayers] = useState(0);
   
   const customAlert = (msg) => {
     Alert.alert(
@@ -98,14 +99,56 @@ const App = () => {
     );
   }
   
+  const gameSettings = () => {
+    let info_str = '';
+    
+    if (status == 'Menu') {
+      info_str += 'Still in menu.\nJoin a game to start playing.';
+    } else {
+      info_str += 'Preparation phase:\n';
+      info_str += '- players in game: (' + players.lenght + ')\n';
+      info_str += '- game status: ' + status + '\n';
+      info_str += '- rank: ' + host + ' (host, participant)\n';
+      // info_str += '- winner: ' + winner; // TODO: winner
+    }
+    
+    players.forEach(p => {
+      info_str += '  - player: ' + p.player_id + '\n';
+    });
+    
+    customAlert({title: 'Info:', desc: info_str});
+  }
+  
   const startGame = () => {
-    console.log('TODO: start game (first check if Host)');
-    customAlert({title: 'Starting a game', desc: 'TODO: Trying  to start a game'});
+    let info_str = '';
+    console.log('[Trying to start the Game]');
+    
+    if (host == 'Host') {
+      console.log('[Verified host, starting game...]');
+      firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+        if (documentSnapshot.data().status != 'Play') {
+          if (documentSnapshot.exists) {
+            firestore().collection('Games').doc(gameId).update({
+              'status': 'Play',
+            });
+            console.log("[Game started!]");
+            info_str += 'Verified host, started game!';
+          }
+        } else {
+          console.log("[Game not startable, status " + ocumentSnapshot.data().status  + "]");
+          info_str += 'Game not startable, check settings for more info.';
+        }
+      });
+    } else {
+      console.log('[Not the host, unable to start game.]');
+      info_str += "Not the host, unable to start game.";
+    }
+    customAlert({title: 'Starting a game:', desc: info_str});
   }
   
   const joinGame = (id) => {
     firestore().collection('Games').doc(id).get().then(documentSnapshot => {
-      console.log("--> Game exists:", documentSnapshot.exists);
+      console.log("[Game exists:", documentSnapshot.exists + ']');
       if (documentSnapshot.exists) {
         let players = documentSnapshot.data().players;
         players.push({
@@ -116,27 +159,28 @@ const App = () => {
         if (documentSnapshot.data().max_players > player_count) {
           firestore().collection('Games').doc(id).update({
             'player_count': player_count + 1,
-          })
+          });
           firestore().collection('Games').doc(id).update({
             'players': players,
           }).then(() => {
-            console.log('--> Joined game!');
+            console.log('[Joined game!]');
             customAlert({title: 'Join info:', desc: 'Game exists and succesfully joined!'});
             setHost('Participant');
+            setMaxPlayers(documentSnapshot.data().max_players);
           });
         } else {
-          console.log("--> Game full...");
-          customAlert({title: 'Joi info:', desc: 'Failed: Game full.'});
+          console.log("[Game full...]");
+          customAlert({title: 'Join info:', desc: 'Failed: Game full.'});
         }
       }
     });
   }
   
   const createGame = () => {
-    console.log("--> Trying to create a Game");
+    console.log("[Trying to create a Game]");
     firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
       if (documentSnapshot.exists) {
-        console.log("--> Game already exists, trying to join...");
+        console.log("[Game already exists, trying to join...]");
         joinGame(gameId);
       } else {
           firestore().collection('Games').doc(gameId).set({
@@ -152,10 +196,11 @@ const App = () => {
               }
             ]
           }).then(() => {
-            console.log('--> Game added!');
+            console.log('[Game added!]');
             customAlert({title: 'Create info:', desc: 'Created game with ID: ' + gameId});
             setHost('Host');
             setStatus('Prep');
+            setMaxPlayers(20);
           });
       }
     });
@@ -184,6 +229,10 @@ const App = () => {
     });
   }
   
+  const endGame = () => {
+    console.log('TODO: End current game (host ends full game, rest just leaves)');
+  }
+  
   const checkWinCondition = () => {
     // Check if player in vicinity
     let adversaries = [];
@@ -210,7 +259,7 @@ const App = () => {
           latitude: a.latitude, 
           longitde: a.longitude
         },
-        1
+        1  // accuracy in metres
       );
       if (dist < 50) {
         customAlert({title: 'Adversary close', desc: 'TODO: Have you spotted an Adversary?'});
@@ -252,13 +301,14 @@ const App = () => {
         if (documentSnapshot.exists) {
           //console.log('Game data: ', documentSnapshot.data());
           setPlayers(documentSnapshot.data().players); // update player list
+          setMaxPlayers(documentSnapshot.data().max_players);
           //console.log('Players: ', players);
           updateLocations(); // update player locations
           if (documentSnapshot.data().status == 'Play' && status != 'Play') {
             customAlert({title: 'Game status info:', desc: 'Game has started, good luck!'});
           }
           setStatus(documentSnapshot.data().status); // update game status
-        }
+        } // TODO: else, return to main menu (reset variables) 
       });
     }
     checkStatus();
@@ -271,10 +321,10 @@ const App = () => {
   }
   
   const changeRole = () => {
-    console.log("Trying to change role...");
+    console.log("[Trying to change role...]");
     let new_role = 'Hunted';
     firestore().collection('Locations').doc(uid).get().then(documentSnapshot => {
-      console.log("Location doc exists:", documentSnapshot.exists);
+      console.log("[Location doc exists:", documentSnapshot.exists + ']');
       if (documentSnapshot.exists) {
         let cur_role = documentSnapshot.data().role;
         if (cur_role == 'Hunted') {
@@ -284,7 +334,7 @@ const App = () => {
           'role': new_role
         }).then(() => {
           setRole(new_role);
-          console.log('Role changed to:', new_role);
+          console.log('[Role changed to:', new_role + ']');
           customAlert({title: 'Role info:', desc: 'Changed role to: ' + new_role});
         });
       } else {
@@ -297,7 +347,7 @@ const App = () => {
   
   /* Map functions */
   const goToUser = () => {
-    console.log("Center button pressed.");
+    console.log("[Center button pressed.]");
     let user_loc = {
       latitude: location?.coords?.latitude,
       longitude: location?.coords?.longitude,
@@ -539,23 +589,6 @@ const App = () => {
     }
   };
   
-//  useEffect(() => {
-//    const interval = setInterval(() => {
-//      console.log('\n<Interval>');
-//      postLocation();
-//      updateGame();
-//    }, MINUTE_MS);
-//    
-//    return () => clearInterval(interval);
-//  }, [])
-  
-//  TODO: use useCallback hook
-//  useEffect(() => {
-//    return () => {
-//      stopLocationUpdates();
-//    };
-//  }, []);
-  
   /* End of location functions */
   
   if (!observing) {
@@ -575,7 +608,7 @@ const App = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}> Large Scale Hide-n-Seek </Text>
-        <Pressable style={styles.button} onPress={() => console.log("Settings pressed")}>
+        <Pressable style={styles.button} onPress={gameSettings}>
           <Image 
             source={require("./img/settings.jpg")}
             style={styles.image}
