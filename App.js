@@ -146,6 +146,7 @@ const App = () => {
     customAlert({title: 'Starting a game:', desc: info_str});
   }
   
+  // TODO: alert on joining an already joined game
   const joinGame = (id) => {
     firestore().collection('Games').doc(id).get().then(documentSnapshot => {
       console.log("[Game exists:", documentSnapshot.exists + ']');
