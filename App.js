@@ -146,35 +146,59 @@ const App = () => {
     customAlert({title: 'Starting a game:', desc: info_str});
   }
   
-  // TODO: alert on joining an already joined game
   const joinGame = (id) => {
-    firestore().collection('Games').doc(id).get().then(documentSnapshot => {
-      console.log("[Game exists:", documentSnapshot.exists + ']');
-      if (documentSnapshot.exists) {
-        let players = documentSnapshot.data().players;
-        players.push({
-          player_id: uid,
-          alive: true,
-        });
-        let player_count = documentSnapshot.data().player_count;
-        if (documentSnapshot.data().max_players > player_count) {
-          firestore().collection('Games').doc(id).update({
-            'player_count': player_count + 1,
+    let joined = false;
+    
+    if (status != 'Menu') {
+      console.log('[Already in a game.]');
+      customAlert({title: 'Join info:', desc: 'Already in a game.\nGame not joined.'});
+    } else {
+      firestore().collection('Games').doc(id).get().then(documentSnapshot => {
+        console.log("[Game exists:", documentSnapshot.exists + ']');
+        if (documentSnapshot.exists) {
+          documentSnapshot.data().players.forEach(p => {
+            if (p.player_id == uid) {
+              joined = true;
+            }
           });
-          firestore().collection('Games').doc(id).update({
-            'players': players,
-          }).then(() => {
-            console.log('[Joined game!]');
-            customAlert({title: 'Join info:', desc: 'Game exists and succesfully joined!'});
-            setHost('Participant');
+          if (!joined) {
+            let players = documentSnapshot.data().players;
+            players.push({
+              player_id: uid,
+              alive: true,
+            });
+            let player_count = documentSnapshot.data().player_count;
+            if (documentSnapshot.data().max_players > player_count) {
+              firestore().collection('Games').doc(id).update({
+                'player_count': player_count + 1,
+              });
+              firestore().collection('Games').doc(id).update({
+                'players': players,
+              }).then(() => {
+                console.log('[Joined game!]');
+                customAlert({title: 'Join info:', desc: 'Game succesfully joined!'});
+                setHost('Participant');
+                setMaxPlayers(documentSnapshot.data().max_players);
+              });
+            } else {
+              console.log("[Game full...]");
+              customAlert({title: 'Join info:', desc: 'Failed: Game full.'});
+            }
+          } else {
+            console.log('Already in this game');
+            customAlert({title: 'Join info:', desc: 'Joined game before.\n Rejoining game.'});
+            setGameId(id);
+            setStatus(documentSnapshot.data().status);
             setMaxPlayers(documentSnapshot.data().max_players);
-          });
-        } else {
-          console.log("[Game full...]");
-          customAlert({title: 'Join info:', desc: 'Failed: Game full.'});
+            if (uid == documentSnapshot.data().host) {
+              setHost('Host');
+            } else {
+              setHost('Participant');
+            }
+          }
         }
-      }
-    });
+      });
+    }
   }
   
   const createGame = () => {
@@ -234,18 +258,16 @@ const App = () => {
     console.log('TODO: End current game (host ends full game, rest just leaves)');
   }
   
-  const checkWinCondition = () => {
-    // Check if player in vicinity
+  // TODO: only update, not reset
+  const setMarkList = () => {
     let adversaries = [];
-    let you;
+    let marks = [];
     let dist;
     
     // Get adversary list from plocs: {id, lat, lon, role}
     plocs.forEach(p => {
       if (p.role != role) {
         adversaries.push(p);
-      } else if (p.id == uid) {
-        you = p;
       }
     });
     
@@ -262,10 +284,34 @@ const App = () => {
         },
         1  // accuracy in metres
       );
+      // Adversary is close, add to mark list
       if (dist < 50) {
-        customAlert({title: 'Adversary close', desc: 'TODO: Have you spotted an Adversary?'});
+        marks.push({player_id: a.player_id, marked: false});
       }
     });
+    
+    // Update mark list
+    firestore().collection('Proximity').doc(uid).set({
+        // TODO Proximity: player_id: {marks: [{player_id, mark}]}
+        marks: marks,
+    });
+    
+    // TODO: simple indicator that adversary is in proximity
+    console.log('--> Updated mark list.');
+  }
+  
+  // TODO: Prompt user if marked by hunter
+  const checkMarks = () => {
+    console.log('--> Checking for marks.');
+  }
+  
+  // Check proximity and action, depending on role
+  const checkProximity = () => {
+    if (role == 'Hunter') {
+      setMarks();
+    } else {
+      checkMarks();
+    }
   }
   
   const checkStatus = () => {
@@ -275,7 +321,7 @@ const App = () => {
       console.log('--> Preparation phase...');
     } else if (status == 'Play') {
       console.log('--> Playing game...');
-      checkWinCondition();
+      checkProximity();
     } else {
       console.log('--> Game has Ended...');
     }
@@ -309,7 +355,10 @@ const App = () => {
             customAlert({title: 'Game status info:', desc: 'Game has started, good luck!'});
           }
           setStatus(documentSnapshot.data().status); // update game status
-        } // TODO: else, return to main menu (reset variables) 
+        } else {
+          setStatus('Menu');
+          setHost('Lobby');
+        }
       });
     }
     checkStatus();
@@ -324,24 +373,30 @@ const App = () => {
   const changeRole = () => {
     console.log("[Trying to change role...]");
     let new_role = 'Hunted';
-    firestore().collection('Locations').doc(uid).get().then(documentSnapshot => {
-      console.log("[Location doc exists:", documentSnapshot.exists + ']');
-      if (documentSnapshot.exists) {
-        let cur_role = documentSnapshot.data().role;
-        if (cur_role == 'Hunted') {
-          new_role = 'Hunter';
+    
+    if (status != 'Play') {
+      firestore().collection('Locations').doc(uid).get().then(documentSnapshot => {
+        console.log("[Location doc exists:", documentSnapshot.exists + ']');
+        if (documentSnapshot.exists) {
+          let cur_role = documentSnapshot.data().role;
+          if (cur_role == 'Hunted') {
+            new_role = 'Hunter';
+          }
+          firestore().collection('Locations').doc(uid).update({
+            'role': new_role
+          }).then(() => {
+            setRole(new_role);
+            console.log('[Role changed to:', new_role + ']');
+            customAlert({title: 'Role info:', desc: 'Changed role to: ' + new_role});
+          });
+        } else {
+          customAlert({title: 'Role info:', desc: 'Join a game first :)'});
         }
-        firestore().collection('Locations').doc(uid).update({
-          'role': new_role
-        }).then(() => {
-          setRole(new_role);
-          console.log('[Role changed to:', new_role + ']');
-          customAlert({title: 'Role info:', desc: 'Changed role to: ' + new_role});
-        });
-      } else {
-        customAlert({title: 'Role info:', desc: 'Join a game first :)'});
-      }
-    });
+      });
+    } else {
+      console.log('[Cannot change role, game started.]');
+      customAlert({title: 'Role info:', desc: 'Cannot change role.\nGame already started.'});
+    }
   }
   
   /* End of Databas functions */
@@ -358,7 +413,6 @@ const App = () => {
     mapRef.current.animateToRegion(user_loc, 1 * 1000);
   };
   
-  /* use React.memo */
   const PlaceMarkers = () => {
     //console.log("Locations:", plocs);
     
