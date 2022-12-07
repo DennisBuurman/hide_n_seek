@@ -5,7 +5,6 @@
  * Authors: George Boukouvalas, Dennis Buurman
  * Organization: LIACS @ Leiden University
  * key: 8c6526fd-284d-4601-90f8-5cf99e87cb18
- * realm-cli login --api-key jvmokmqb --private-api-key 8c6526fd-284d-4601-90f8-5cf99e87cb18
  *
  * @format
  * @flow strict-local
@@ -35,9 +34,19 @@ import {
     Platform,
     Image,
     Pressable,
+    ScrollView,
 } from 'react-native';
 import styles from './Styles.js';
 import uuid from 'react-native-uuid';
+
+import {
+ Menu,
+ MenuProvider,
+ MenuOptions,
+ MenuOption,
+ MenuTrigger,
+ renderers,
+} from "react-native-popup-menu";
 
 // Location and maps imports
 import MapView from 'react-native-maps';
@@ -46,7 +55,7 @@ import {
 } from 'react-native-maps';
 import Geolocation, {GeoPosition} from 'react-native-geolocation-service';
 import VIForegroundService from '@voximplant/react-native-foreground-service';
-import getDistance from 'geolib/es/getDistance';
+import { getDistance } from 'geolib';
 
 // database imports
 import firestore from '@react-native-firebase/firestore';
@@ -54,7 +63,7 @@ import firestore from '@react-native-firebase/firestore';
 /*************************************************/
 
 const gameCollection = firestore().collection('Games');
-const uid = uuid.v4(); // TODO: save in file after debug phase (used for player simulation)
+const uid = "69";// uuid.v4(); // TODO: save per device
 const INTERVAL_MS = 3;
 let counter = 0;
 
@@ -85,9 +94,11 @@ const App = () => {
   const [plocs, setPlocs] = useState([]); // locations of other players {id, lat, lon, role}
   const [status, setStatus] = useState('Menu'); // Menu, Prep, Play, End
   const [gameId, setGameId] = useState('TestID');
-  const [role, setRole] = useState('Hunted');
+  const [role, setRole] = useState('Hunter');
   const [host, setHost] = useState('Lobby'); // Lobby, Host, Participant
   const [maxPlayers, setMaxPlayers] = useState(0);
+  const [playerCount, setPlayerCount] = useState(0);
+  const [markList, setMarkList] = useState([]);
   
   const customAlert = (msg) => {
     Alert.alert(
@@ -100,20 +111,22 @@ const App = () => {
   }
   
   const gameSettings = () => {
-    let info_str = '';
+    let info_str = 'Player ID: ' + uid + '\n\n';
     
     if (status == 'Menu') {
       info_str += 'Still in menu.\nJoin a game to start playing.';
     } else {
-      info_str += 'Preparation phase:\n';
-      info_str += '- players in game: (' + players.lenght + ')\n';
+      info_str += status + ' phase:\n';
+      info_str += '- role: ' + role + '\n'; 
+      info_str += '- player count: ' + playerCount + '\n';
       info_str += '- game status: ' + status + '\n';
-      info_str += '- rank: ' + host + ' (host, participant)\n';
+      info_str += '- rank: ' + host + '\n';
+      info_str += '- players:\n';
       // info_str += '- winner: ' + winner; // TODO: winner
     }
     
     players.forEach(p => {
-      info_str += '  - player: ' + p.player_id + '\n';
+      info_str += '   => ' + p.player_id + '\n';
     });
     
     customAlert({title: 'Info:', desc: info_str});
@@ -179,6 +192,8 @@ const App = () => {
                 customAlert({title: 'Join info:', desc: 'Game succesfully joined!'});
                 setHost('Participant');
                 setMaxPlayers(documentSnapshot.data().max_players);
+                setStatus(documentSnapshot.data().status);
+                setGameId(id);
               });
             } else {
               console.log("[Game full...]");
@@ -254,53 +269,97 @@ const App = () => {
     });
   }
   
+  const leaveGame = () => {
+    console.log('TODO: leave current game');
+  }
+  
   const endGame = () => {
     console.log('TODO: End current game (host ends full game, rest just leaves)');
   }
   
-  // TODO: only update, not reset
-  const setMarkList = () => {
+  const markPlayer = (id) => {
+    console.log('Marking player: ' + id);
+    
+    firestore().collection('Proximity').doc(uid).get().then(documentSnapshot => {
+      if (documentSnapshot.exists) {
+        // TODO: update mark list
+      }
+    });
+    
+    customAlert({title: 'Mark info:', desc: 'Marked player: ' + id});
+  }
+  
+  const markMenu = () => {
+    let options = [{ text: "Return", onPress: () => console.log("OK Pressed") }];
+    
+    console.log('[Checking mark list menu.]');
+    
+    markList.forEach(mark => {
+      options.push({
+        text: mark.player_id,
+        onPress: markPlayer(mark.player_id),
+      });
+    });
+    
+    Alert.alert(
+      "Mark List",
+      "Tap on player you would like to mark",
+      options,
+    );
+  }
+  
+  const updateMarkList = () => {
     let adversaries = [];
     let marks = [];
     let dist;
+    let you;
     
     // Get adversary list from plocs: {id, lat, lon, role}
     plocs.forEach(p => {
       if (p.role != role) {
         adversaries.push(p);
+      } else if (p.player_id == uid) {
+        you = p;
       }
     });
     
-    // Check if an adversary is close to you
-    adversaries.forEach(a => {
-      dist = getDistance(
-        {
-          latitute: you.latitude, 
-          longitude: you.longitude
-        }, 
-        {
-          latitude: a.latitude, 
-          longitde: a.longitude
-        },
-        1  // accuracy in metres
-      );
-      // Adversary is close, add to mark list
-      if (dist < 50) {
-        marks.push({player_id: a.player_id, marked: false});
-      }
-    });
-    
-    // Update mark list
-    firestore().collection('Proximity').doc(uid).set({
-        // TODO Proximity: player_id: {marks: [{player_id, mark}]}
-        marks: marks,
-    });
-    
-    // TODO: simple indicator that adversary is in proximity
-    console.log('--> Updated mark list.');
+    if (you) {
+      // Check if an adversary is close to you
+      adversaries.forEach(a => {
+        dist = getDistance(
+          {latitude: you.latitude, longitude: you.longitude,}, 
+          {latitude: a.latitude, longitude: a.longitude,},
+        );
+        // Adversary is close, add to mark list
+        if (dist < 100) {
+          marks.push({player_id: a.player_id, marked: false});
+        }
+      });
+      
+      // Compare new mark list with old one (don't overwrite 'marked' values')
+      marks.forEach(new_mark => {
+        markList.forEach(old_mark => {
+          // Keep old markers (dont false a previous true)
+          if (old_mark.player_id == new_mark.player_id) {
+            new_mark.marked = old_mark.marked;
+          }
+        });
+      });
+      
+      // Update mark list
+      // Proximity: player_id: {marks: [{player_id, mark}]}
+      firestore().collection('Proximity').doc(uid).set({
+          marks: marks,
+      });
+      setMarkList(marks);
+      console.log('--> Updated mark list, len: ' + marks.length);
+    } else {
+      console.log('--> Failed to update mark list: user not found');
+    }
   }
   
   // TODO: Prompt user if marked by hunter
+  // TODO: die if confirmed
   const checkMarks = () => {
     console.log('--> Checking for marks.');
   }
@@ -308,7 +367,7 @@ const App = () => {
   // Check proximity and action, depending on role
   const checkProximity = () => {
     if (role == 'Hunter') {
-      setMarks();
+      updateMarkList();
     } else {
       checkMarks();
     }
@@ -349,6 +408,7 @@ const App = () => {
           //console.log('Game data: ', documentSnapshot.data());
           setPlayers(documentSnapshot.data().players); // update player list
           setMaxPlayers(documentSnapshot.data().max_players);
+          setPlayerCount(documentSnapshot.data().player_count);
           //console.log('Players: ', players);
           updateLocations(); // update player locations
           if (documentSnapshot.data().status == 'Play' && status != 'Play') {
@@ -390,7 +450,7 @@ const App = () => {
             customAlert({title: 'Role info:', desc: 'Changed role to: ' + new_role});
           });
         } else {
-          customAlert({title: 'Role info:', desc: 'Join a game first :)'});
+          customAlert({title: 'Role info:', desc: 'Failed: could not find player. Try again in a few seconds.'});
         }
       });
     } else {
@@ -398,7 +458,6 @@ const App = () => {
       customAlert({title: 'Role info:', desc: 'Cannot change role.\nGame already started.'});
     }
   }
-  
   /* End of Databas functions */
   
   /* Map functions */
@@ -657,19 +716,40 @@ const App = () => {
       counter = counter + 1;
     }
   }
+  
+  const ProximityInfo = () => {
+    let content = [];
     
+    if (role == 'Hunter') {
+      content.push(
+        <Text style={styles.Proximity}> Targets in proximity: {markList.length} </Text>
+      );
+    } else {
+      content.push(
+        <Text style={styles.Proximity}> TODO: notification if been marked. </Text>
+      );
+    }
+    
+    return (
+      content
+    );
+  }
+  
   /* Return sequence */
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}> Large Scale Hide-n-Seek </Text>
-        <Pressable style={styles.button} onPress={gameSettings}>
+        <Pressable style={styles.settings} onPress={gameSettings}>
           <Image 
             source={require("./img/settings.jpg")}
             style={styles.image}
             resizeMode="contain"
           />
         </Pressable>
+      </View>
+      <View style={styles.header}>
+        <ProximityInfo/>
       </View>
       <MapView
         coords={location?.coords || null}
@@ -684,6 +764,11 @@ const App = () => {
         <Pressable style={styles.button} onPress={() => goToUser()}>
           <Text style={styles.text}>Center</Text>
         </Pressable>
+        <Pressable style={styles.button} onPress={markMenu}>
+          <Text style={styles.text}>Mark List</Text>
+        </Pressable>
+      </View>
+      <View style={styles.buttons}>
         <Pressable style={styles.button} onPress={createGame}>
           <Text style={styles.text}>Join a Game</Text>
         </Pressable>
