@@ -260,14 +260,16 @@ const App = () => {
       //console.log('--> Total users: ', querySnapshot.size);
       querySnapshot.forEach(documentSnapshot => {
         players.forEach(p => {
-          if (p.alive && p.player_id == documentSnapshot.id) {
+          if (/*p.alive &&*/ p.player_id == documentSnapshot.id) {
             count += 1;
-            locations.push({
-              player_id: documentSnapshot.id,
-              role: documentSnapshot.data().role,
-              latitude: documentSnapshot.data().latitude,
-              longitude: documentSnapshot.data().longitude
-            });
+            if (p.alive) {
+              locations.push({
+                player_id: documentSnapshot.id,
+                role: documentSnapshot.data().role,
+                latitude: documentSnapshot.data().latitude,
+                longitude: documentSnapshot.data().longitude
+              });
+            }
           }
         });
       });
