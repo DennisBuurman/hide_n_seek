@@ -322,7 +322,7 @@ const App = () => {
       markList.forEach(mark => {
         options.push({
           text: mark.player_id,
-          onPress: () => die(),
+          onPress: () => die(mark.player_id),
         });
       });
     }
@@ -385,40 +385,42 @@ const App = () => {
   }
   
   const players_alive = () => {
-    let found = false;
-    let P;
-    let hunteds = [];
-    console.log('--> Checking if there are alive hunteds');
-    
-    players.forEach(p => {
-      if (p.role == 'Hunted' && p.alive) {
-        hunteds.push(p.player_id);
-      }
-    });
-    
-    firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
-      if (documentSnapshot.exists) {
-        P = documentSnapshot.data().players;
-        P.forEach(p => {
-          if (hunteds.includes(p.player_id)) {
-            found = true;
-          }
-        });
-        if (found) {
-          console.log('--> Found alive player.');
-        } else {
-          console.log('--> No hunteds alive, ending game...');
-          firestore().collection('Games').doc(gameId).update({
-            'status': 'End',
-          });
-          setStatus('End');
+    if (status != 'End'){
+      let found = false;
+      let P;
+      let hunteds = [];
+      console.log('--> Checking if there are alive hunteds');
+      
+      players.forEach(p => {
+        if (p.role == 'Hunted' && p.alive) {
+          hunteds.push(p.player_id);
         }
-      }
-    });
+      });
+      
+      firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+        if (documentSnapshot.exists) {
+          P = documentSnapshot.data().players;
+          P.forEach(p => {
+            if (hunteds.includes(p.player_id)) {
+              found = true;
+            }
+          });
+          if (found) {
+            console.log('--> Found alive player.');
+          } else {
+            console.log('--> No hunteds alive, ending game...');
+            firestore().collection('Games').doc(gameId).update({
+              'status': 'End',
+            });
+            setStatus('End');
+          }
+        }
+      });
+    }
   }
   
   // Unalive player. Check if game must end.
-  const die = () => {
+  const die = (id) => {
     let P;
     console.log('[Unaliving self.]');
     
@@ -436,7 +438,7 @@ const App = () => {
         setPlayers(P);
         setAlive(false);
         console.log('[Unalived succesfully.]');
-        customAlert({title: 'Game info:', desc: 'You have been eliminated.'});
+        customAlert({title: 'Game info:', desc: 'You have been eliminated by ' + id});
         players_alive();
       }
     });
@@ -455,8 +457,8 @@ const App = () => {
   const markedMenu = (id) => {
     let options = [
       { text: "Return", onPress: () => console.log("OK Pressed") },
-      { text: "Confirm", onPress: die()},
-      { text: "Deny", onPress: denyMark(id)},
+      { text: "Confirm", onPress: () => die()},
+      { text: "Deny", onPress: () => denyMark(id)},
     ];
     
     console.log('[Checking marked menu.]');
@@ -532,10 +534,6 @@ const App = () => {
       if (alive) {
         checkProximity();
       }
-    } else {
-      console.log('--> Game has Ended...');
-      customAlert({title: 'Game info:', desc: 'Game ended!\nReturning to menu.'});
-      setStatus('Menu');
     }
   }
   
@@ -574,7 +572,9 @@ const App = () => {
         }
       });
     }
-    checkStatus();
+    if (status != 'End') {
+      checkStatus();
+    }
   }
   
   const deleteLocation = () => {
