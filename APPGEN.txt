@@ -1,0 +1,9 @@
+***Generate Key***
+
+pw: hide_n_seek
+Is CN=Dennis Buurman, OU=LIACS, O=Leiden University, L=Leiden, ST=Zuid-Holland, C=NL correct?
+  [no]:  yes
+
+keytool -genkey -v -keystore hide_n_seek_key.keystore -alias hide_n_seek_key -keyalg RSA -keysize 2048 -validity 10000
+
+npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle  --assets-dest android/app/src/main/res/

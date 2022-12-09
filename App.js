@@ -63,7 +63,7 @@ import firestore from '@react-native-firebase/firestore';
 /*************************************************/
 
 const gameCollection = firestore().collection('Games');
-const uid = "69";// uuid.v4(); // TODO: save per device
+const uid = uuid.v4(); // TODO: save per device
 //const uid = "1dc33d7d-64d8-4042-aa8d-f5c65caa8fbe";
 const INTERVAL_MS = 3;
 let counter = 0;
@@ -95,7 +95,7 @@ const App = () => {
   const [plocs, setPlocs] = useState([]); // locations of other players {id, lat, lon, role}
   const [status, setStatus] = useState('Menu'); // Menu, Prep, Play, End
   const [gameId, setGameId] = useState('TestID');
-  const [role, setRole] = useState('Hunter');
+  const [role, setRole] = useState('Hunted');
   const [host, setHost] = useState('Lobby'); // Lobby, Host, Participant
   const [alive, setAlive] = useState(true); // alive: false or true?
   const [maxPlayers, setMaxPlayers] = useState(0);
@@ -124,7 +124,6 @@ const App = () => {
       info_str += '- game status: ' + status + '\n';
       info_str += '- rank: ' + host + '\n';
       info_str += '- players:\n';
-      // info_str += '- winner: ' + winner; // TODO: winner
     }
     
     players.forEach(p => {
