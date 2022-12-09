@@ -64,6 +64,7 @@ import firestore from '@react-native-firebase/firestore';
 
 const gameCollection = firestore().collection('Games');
 const uid = "69";// uuid.v4(); // TODO: save per device
+//const uid = "1dc33d7d-64d8-4042-aa8d-f5c65caa8fbe";
 const INTERVAL_MS = 3;
 let counter = 0;
 
@@ -96,6 +97,7 @@ const App = () => {
   const [gameId, setGameId] = useState('TestID');
   const [role, setRole] = useState('Hunter');
   const [host, setHost] = useState('Lobby'); // Lobby, Host, Participant
+  const [alive, setAlive] = useState(true); // alive: false or true?
   const [maxPlayers, setMaxPlayers] = useState(0);
   const [playerCount, setPlayerCount] = useState(0);
   const [markList, setMarkList] = useState([]);
@@ -161,6 +163,7 @@ const App = () => {
   
   const joinGame = (id) => {
     let joined = false;
+    let still_alive = true;
     
     if (status != 'Menu') {
       console.log('[Already in a game.]');
@@ -172,6 +175,7 @@ const App = () => {
           documentSnapshot.data().players.forEach(p => {
             if (p.player_id == uid) {
               joined = true;
+              still_alive = p.alive;
             }
           });
           if (!joined) {
@@ -194,6 +198,7 @@ const App = () => {
                 setMaxPlayers(documentSnapshot.data().max_players);
                 setStatus(documentSnapshot.data().status);
                 setGameId(id);
+                setAlive(true);
               });
             } else {
               console.log("[Game full...]");
@@ -205,6 +210,7 @@ const App = () => {
             setGameId(id);
             setStatus(documentSnapshot.data().status);
             setMaxPlayers(documentSnapshot.data().max_players);
+            setAlive(still_alive);
             if (uid == documentSnapshot.data().host) {
               setHost('Host');
             } else {
@@ -241,6 +247,7 @@ const App = () => {
             setHost('Host');
             setStatus('Prep');
             setMaxPlayers(20);
+            setAlive(true);
           });
       }
     });
@@ -273,16 +280,22 @@ const App = () => {
     console.log('TODO: leave current game');
   }
   
-  const endGame = () => {
-    console.log('TODO: End current game (host ends full game, rest just leaves)');
-  }
-  
   const markPlayer = (id) => {
-    console.log('Marking player: ' + id);
+    let list;
+    console.log('[Marking player: ' + id + ']');
     
     firestore().collection('Proximity').doc(uid).get().then(documentSnapshot => {
       if (documentSnapshot.exists) {
-        // TODO: update mark list
+        list = documentSnapshot.data().marks;
+        list.forEach(mark => {
+          if (mark.player_id == id) {
+            mark.marked = true;
+          }
+        });
+        setMarkList(list);
+        firestore().collection('Proximity').doc(uid).set({marks: list}).then(() => {
+          console.log('[Player ' + id + ' marked]');
+        });
       }
     });
     
@@ -291,19 +304,32 @@ const App = () => {
   
   const markMenu = () => {
     let options = [{ text: "Return", onPress: () => console.log("OK Pressed") }];
+    let desc = 'Tap on player you would like to mark:';
     
     console.log('[Checking mark list menu.]');
     
-    markList.forEach(mark => {
-      options.push({
-        text: mark.player_id,
-        onPress: markPlayer(mark.player_id),
+    if (role == 'Hunter') {
+      markList.forEach(mark => {
+        if (!mark.marked) {
+          options.push({
+            text: mark.player_id,
+            onPress: () => markPlayer(mark.player_id),
+          });
+        }
       });
-    });
+    } else {
+      desc = 'Tap on player to confirm his/her mark:';
+      markList.forEach(mark => {
+        options.push({
+          text: mark.player_id,
+          onPress: () => die(),
+        });
+      });
+    }
     
     Alert.alert(
       "Mark List",
-      "Tap on player you would like to mark",
+      desc,
       options,
     );
   }
@@ -358,10 +384,133 @@ const App = () => {
     }
   }
   
-  // TODO: Prompt user if marked by hunter
-  // TODO: die if confirmed
+  const players_alive = () => {
+    let found = false;
+    let P;
+    let hunteds = [];
+    console.log('--> Checking if there are alive hunteds');
+    
+    players.forEach(p => {
+      if (p.role == 'Hunted' && p.alive) {
+        hunteds.push(p.player_id);
+      }
+    });
+    
+    firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+      if (documentSnapshot.exists) {
+        P = documentSnapshot.data().players;
+        P.forEach(p => {
+          if (hunteds.includes(p.player_id)) {
+            found = true;
+          }
+        });
+        if (found) {
+          console.log('--> Found alive player.');
+        } else {
+          console.log('--> No hunteds alive, ending game...');
+          firestore().collection('Games').doc(gameId).update({
+            'status': 'End',
+          });
+          setStatus('End');
+        }
+      }
+    });
+  }
+  
+  // Unalive player. Check if game must end.
+  const die = () => {
+    let P;
+    console.log('[Unaliving self.]');
+    
+    firestore().collection('Games').doc(gameId).get().then(documentSnapshot => {
+      if (documentSnapshot.exists) {
+        P = documentSnapshot.data().players;
+        P.forEach(p => {
+          if (p.player_id == uid) {
+            p.alive = false;
+          }
+        });
+        firestore().collection('Games').doc(gameId).update({
+          'players': P,
+        });
+        setPlayers(P);
+        setAlive(false);
+        console.log('[Unalived succesfully.]');
+        customAlert({title: 'Game info:', desc: 'You have been eliminated.'});
+        players_alive();
+      }
+    });
+  }
+  
+  const denyMark = (id) => {
+    console.log('[Denied mark, adding to list.]');
+    customAlert({title: 'Denied mark.', desc: 'Added to mark list for later confirmation.'});
+    
+    let list = markList;
+    list.push(id);
+    setMarkList(list);
+  }
+  
+  // Hunted: Confirm and deny functions
+  const markedMenu = (id) => {
+    let options = [
+      { text: "Return", onPress: () => console.log("OK Pressed") },
+      { text: "Confirm", onPress: die()},
+      { text: "Deny", onPress: denyMark(id)},
+    ];
+    
+    console.log('[Checking marked menu.]');
+    
+    Alert.alert(
+      "You have been marked!",
+      "Confirm or deny this mark",
+      options,
+    );
+  }
+  
+  // Prompt user if marked by hunter
+  // save mark if denied
   const checkMarks = () => {
+    let adversaries = [];
+    let list;
+    let found = false;
+    let prev_marked;
+    let you;
     console.log('--> Checking for marks.');
+    
+    // Get adversary list from players: {id, alive}
+    players.forEach(p => {
+      if (p.role != role) {
+        adversaries.push(p);
+      } else if (p.player_id == uid) {
+        you = p;
+      }
+    });
+    
+    adversaries.forEach(a => {
+      if (!found) {
+        prev_marked = false;
+        firestore().collection('Proximity').doc(a.player_id).get().then(documentSnapshot => {
+          if (documentSnapshot.exists) {
+            list = documentSnapshot.data().marks;
+            list.forEach(mark => {
+              if (mark.player_id == uid) {
+                // Prompt user
+                markList.forEach(x => {
+                  if (x.player_id == mark.player_id) {
+                    prev_marked = true;
+                  }
+                });
+                if (!prev_marked) {
+                  markedMenu(a.player_id);
+                  found = true;
+                }
+              }
+            });
+          }
+        });
+      }
+    });
   }
   
   // Check proximity and action, depending on role
@@ -380,9 +529,13 @@ const App = () => {
       console.log('--> Preparation phase...');
     } else if (status == 'Play') {
       console.log('--> Playing game...');
-      checkProximity();
+      if (alive) {
+        checkProximity();
+      }
     } else {
       console.log('--> Game has Ended...');
+      customAlert({title: 'Game info:', desc: 'Game ended!\nReturning to menu.'});
+      setStatus('Menu');
     }
   }
   
@@ -726,7 +879,7 @@ const App = () => {
       );
     } else {
       content.push(
-        <Text style={styles.Proximity}> TODO: notification if been marked. </Text>
+        <Text style={styles.Proximity}> Marked by {markList.length} players. </Text>
       );
     }
     
